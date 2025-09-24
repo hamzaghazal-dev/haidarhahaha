@@ -615,28 +615,37 @@ def display_occupancy_by_hostel(bookings: List[Dict]):
         st.info("No guests found for the selected criteria.")
         return
         
-    # Group by hostel
-    hostel_occupancy = defaultdict(lambda: {"guests": 0, "departures": defaultdict(list)})
+    # Group by hostel and then by departure date for better display
+    hostel_data = defaultdict(lambda: {"guests": 0, "departures": defaultdict(list)})
     
     for booking in filtered_bookings:
         hostel = booking['hostel']
         num_guests = int(booking['number_of_guests'])
         departure_date_str = booking['departure_date']
         
-        hostel_occupancy[hostel]['guests'] += num_guests
-        hostel_occupancy[hostel]['departures'][departure_date_str].append(booking)
+        hostel_data[hostel]['guests'] += num_guests
+        hostel_data[hostel]['departures'][departure_date_str].append(booking)
         
-    for hostel, data in hostel_occupancy.items():
+    for hostel, data in hostel_data.items():
         st.markdown(f"### {hostel} Hostel")
-        st.metric(f"Total Guests in period", data['guests'])
+        st.metric("Total Guests in Period", data['guests'])
         
-        st.markdown("#### Departures")
-        if data['departures']:
-            for date_str, departures_list in sorted(data['departures'].items()):
-                st.write(f"**Departing on {date_str}:**")
-                for booking in departures_list:
-                    st.write(f"- {booking['full_name']} ({booking['number_of_guests']} guest(s))")
-        else:
+        st.markdown("#### Guest Details")
+        for date_str, departures_list in sorted(data['departures'].items()):
+            st.write(f"**Departing on {date_str}:**")
+            for booking in departures_list:
+                # Add room type and conversation link to the display
+                room_type = booking.get('room_type', 'N/A')
+                conversation_link = booking.get('conversation_link')
+                
+                st.write(f"- **{booking['full_name']}** ({booking['number_of_guests']} guest(s))")
+                st.write(f"  - Room Type: {room_type}")
+                if conversation_link and conversation_link != 'Not found':
+                    st.markdown(f"  - [View Conversation]({conversation_link})")
+                else:
+                    st.write("  - Conversation: No link available")
+        
+        if not data['departures']:
             st.info("No departures for this hostel in the selected period.")
 
 def main():
