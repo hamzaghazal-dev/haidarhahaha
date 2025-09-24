@@ -563,6 +563,82 @@ def add_manual_booking_form():
 
                 st.session_state.bookings = current_bookings
                 st.rerun()
+
+def display_occupancy_by_hostel(bookings: List[Dict]):
+    """Tool to know how many people are in each hostel for a specific date range."""
+    st.subheader("👥 Occupancy & Departures by Hostel")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        selected_hostel = st.selectbox("Select Hostel", ["All", "Tamraght", "Taghazout"])
+    with col2:
+        selected_start_date = st.date_input("Start Date")
+        selected_end_date = st.date_input("End Date")
+    
+    if selected_start_date > selected_end_date:
+        st.error("Error: The end date must be after the start date.")
+        return
+        
+    st.markdown("---")
+    
+    # Filter bookings based on selected hostel and date range
+    filtered_bookings = []
+    
+    def parse_date(date_str):
+        try:
+            return datetime.strptime(date_str, "%Y-%b-%d").date()
+        except (ValueError, TypeError):
+            return None
+    
+    for booking in bookings:
+        hostel = booking.get('hostel')
+        arrival_date = parse_date(booking.get('arrival_date'))
+        departure_date = parse_date(booking.get('departure_date'))
+        number_of_guests = booking.get('number_of_guests')
+        
+        # Skip if essential data is missing
+        if not all([hostel, arrival_date, departure_date, number_of_guests]) or number_of_guests in ["Not found", "Not available"]:
+            continue
+            
+        try:
+            num_guests = int(number_of_guests)
+        except (ValueError, TypeError):
+            continue
+            
+        # Check for date overlap and hostel match
+        if (arrival_date <= selected_end_date and departure_date >= selected_start_date):
+            if selected_hostel == "All" or hostel == selected_hostel:
+                filtered_bookings.append(booking)
+    
+    if not filtered_bookings:
+        st.info("No guests found for the selected criteria.")
+        return
+        
+    # Group by hostel
+    hostel_occupancy = defaultdict(lambda: {"guests": 0, "departures": defaultdict(list)})
+    
+    for booking in filtered_bookings:
+        hostel = booking['hostel']
+        num_guests = int(booking['number_of_guests'])
+        departure_date_str = booking['departure_date']
+        
+        hostel_occupancy[hostel]['guests'] += num_guests
+        hostel_occupancy[hostel]['departures'][departure_date_str].append(booking)
+        
+    for hostel, data in hostel_occupancy.items():
+        st.markdown(f"### {hostel} Hostel")
+        st.metric(f"Total Guests in period", data['guests'])
+        
+        st.markdown("#### Departures")
+        if data['departures']:
+            for date_str, departures_list in sorted(data['departures'].items()):
+                st.write(f"**Departing on {date_str}:**")
+                for booking in departures_list:
+                    st.write(f"- {booking['full_name']} ({booking['number_of_guests']} guest(s))")
+        else:
+            st.info("No departures for this hostel in the selected period.")
+
 def main():
     st.set_page_config(
         page_title="Tripaneer Booking Manager",
@@ -646,12 +722,13 @@ def main():
         display_booking_stats(st.session_state.bookings)
         st.markdown("---")
         
-        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
             "🏨 Current Guests", 
             "📅 Today/Tomorrow", 
             "🗓️ Specific Day",
             "📋 Table View", 
-            "✍️ Add Manual Booking"
+            "✍️ Add Manual Booking",
+            "👥 Occupancy Report"
         ])
         
         with tab1:
@@ -668,6 +745,10 @@ def main():
         
         with tab5:
             add_manual_booking_form()
+            
+        with tab6:
+            display_occupancy_by_hostel(st.session_state.bookings)
+            
     else:
         st.warning("👆 Please load bookings from the sidebar to get started.")
         st.info("""
