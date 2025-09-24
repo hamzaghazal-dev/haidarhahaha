@@ -615,38 +615,50 @@ def display_occupancy_by_hostel(bookings: List[Dict]):
         st.info("No guests found for the selected criteria.")
         return
         
-    # Group by hostel and then by departure date for better display
-    hostel_data = defaultdict(lambda: {"guests": 0, "departures": defaultdict(list)})
-    
+    # Create a DataFrame for the table
+    df_data = []
     for booking in filtered_bookings:
-        hostel = booking['hostel']
-        num_guests = int(booking['number_of_guests'])
-        departure_date_str = booking['departure_date']
-        
-        hostel_data[hostel]['guests'] += num_guests
-        hostel_data[hostel]['departures'][departure_date_str].append(booking)
-        
-    for hostel, data in hostel_data.items():
-        st.markdown(f"### {hostel} Hostel")
-        st.metric("Total Guests in Period", data['guests'])
-        
-        st.markdown("#### Guest Details")
-        for date_str, departures_list in sorted(data['departures'].items()):
-            st.write(f"**Departing on {date_str}:**")
-            for booking in departures_list:
-                # Add room type and conversation link to the display
-                room_type = booking.get('room_type', 'N/A')
-                conversation_link = booking.get('conversation_link')
-                
-                st.write(f"- **{booking['full_name']}** ({booking['number_of_guests']} guest(s))")
-                st.write(f"  - Room Type: {room_type}")
-                if conversation_link and conversation_link != 'Not found':
-                    st.markdown(f"  - [View Conversation]({conversation_link})")
-                else:
-                    st.write("  - Conversation: No link available")
-        
-        if not data['departures']:
-            st.info("No departures for this hostel in the selected period.")
+        df_data.append({
+            'Hostel': booking['hostel'],
+            'Name': booking['full_name'],
+            'Guests': booking['number_of_guests'],
+            'Arrival': booking['arrival_date'],
+            'Departure': booking['departure_date'],
+            'Room Type': booking['room_type'],
+            'Conversation': booking['conversation_link']
+        })
+    
+    df = pd.DataFrame(df_data)
+
+    # Convert conversation link to a clickable hyperlink
+    def make_clickable_link(url):
+        if url and url != 'Not found':
+            return f'<a href="{url}" target="_blank">View</a>'
+        return 'No link'
+
+    # Apply the function to the 'Conversation' column
+    df['Conversation'] = df['Conversation'].apply(make_clickable_link)
+    
+    # Display the DataFrame as a table
+    st.dataframe(df,
+                 hide_index=True,
+                 column_config={
+                     "Name": "Name",
+                     "Guests": "Guests",
+                     "Arrival": "Arrival Date",
+                     "Departure": "Departure Date",
+                     "Room Type": "Room Type",
+                     "Conversation": st.column_config.LinkColumn(
+                         "Conversation",
+                         help="Link to the Tripaneer conversation page."
+                     )
+                 })
+    
+    st.markdown("---")
+
+    # Display total guests for the period
+    total_guests = sum(int(b['Guests']) for b in df_data if b['Guests'] not in ["Not found", "Not available"])
+    st.metric("Total Guests in Period", total_guests)
 
 def main():
     st.set_page_config(
